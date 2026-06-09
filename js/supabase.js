@@ -13,6 +13,26 @@ if (!deviceId) {
 
 // Supabase API wrapper
 window.api = {
+    _useLocal: false,
+    _localData: null,
+
+    async _ensureLocalData() {
+        if (this._localData) return;
+        try {
+            const res = await fetch('database/data.json');
+            if (!res.ok) throw new Error('no local data');
+            this._localData = await res.json();
+        } catch (e) {
+            console.warn('Could not load local data.json', e);
+            this._localData = { countries: [], recipes: [], sustainability: {} };
+        }
+    },
+
+    // Simple helper to mark fallback mode when Supabase is unreachable
+    _markUseLocal() {
+        this._useLocal = true;
+        this._ensureLocalData();
+    },
     // Auth
     async getSession() {
         const { data, error } = await supabase.auth.getSession();
@@ -31,44 +51,152 @@ window.api = {
 
     // Queries
     async getCountries() {
-        const { data, error } = await supabase
-            .from('countries')
-            .select('*')
-            .order('name');
-        if (error) console.error(error);
-        return data || [];
+        if (this._useLocal) {
+            await this._ensureLocalData();
+            return this._localData.countries || [];
+        }
+        try {
+            const { data, error } = await supabase
+                .from('countries')
+                .select('*')
+                .order('name');
+            if (error) throw error;
+            return data || [];
+        } catch (e) {
+            console.warn('Supabase countries failed, switching to local', e);
+            this._markUseLocal();
+            return this._localData.countries || [];
+        }
     },
     
     async getRecipesByCountry(countryId) {
-        const { data, error } = await supabase
-            .from('recipes')
-            .select('*')
-            .eq('country_id', countryId)
-            .order('recipe_type', { ascending: true }) // 'prato' comes before 'sobremesa' normally
-            .order('name');
-        if (error) console.error(error);
-        return data || [];
+        if (this._useLocal) {
+            await this._ensureLocalData();
+            return (this._localData.recipes || []).filter(r => String(r.country_id) === String(countryId));
+        }
+        try {
+            const { data, error } = await supabase
+                .from('recipes')
+                .select('*')
+                .eq('country_id', countryId)
+                .order('recipe_type', { ascending: true }) // 'prato' comes before 'sobremesa' normally
+                .order('name');
+            if (error) throw error;
+            return data || [];
+        } catch (e) {
+            console.warn('Supabase recipes failed, switching to local', e);
+            this._markUseLocal();
+            return (this._localData.recipes || []).filter(r => String(r.country_id) === String(countryId));
+        }
     },
     
     async getRecipeDetails(recipeId) {
-        // We use the full detail view
-        const { data, error } = await supabase
-            .from('recipe_full_detail')
-            .select('*')
-            .eq('id', recipeId)
-            .single();
-        if (error) console.error(error);
-        return data;
+        if (this._useLocal) {
+            await this._ensureLocalData();
+            return (this._localData.recipes || []).find(r => String(r.id) === String(recipeId));
+        }
+        try {
+            // Prefer the full detail view but fall back to recipes table
+            let { data, error } = await supabase
+                .from('recipe_full_detail')
+                .select('*')
+                .eq('id', recipeId)
+                .single();
+            if (error) {
+                const r = await supabase.from('recipes').select('*').eq('id', recipeId).single();
+                data = r.data; if (r.error) throw r.error;
+            }
+            return data;
+        } catch (e) {
+            console.warn('Supabase recipe detail failed, switching to local', e);
+            this._markUseLocal();
+            return (this._localData.recipes || []).find(r => String(r.id) === String(recipeId));
+        }
     },
     
     async getSustainabilityByRecipe(recipeId) {
-        const { data, error } = await supabase
-            .from('sustainability')
-            .select('*')
-            .eq('recipe_id', recipeId)
-            .single();
-        if (error) console.error(error);
-        return data;
+        if (this._useLocal) {
+            await this._ensureLocalData();
+            // local data maps sustainability by country id; try recipe->country
+            const recipe = (this._localData.recipes || []).find(r => String(r.id) === String(recipeId));
+            if (recipe) return this._localData.sustainability[recipe.country_id] || null;
+            return null;
+        }
+        try {
+            const { data, error } = await supabase
+                .from('sustainability')
+                .select('*')
+                .eq('recipe_id', recipeId)
+                .single();
+            if (error) throw error;
+            return data;
+        } catch (e) {
+            console.warn('Supabase sustainability failed, switching to local', e);
+            this._markUseLocal();
+            const recipe = (this._localData.recipes || []).find(r => String(r.id) === String(recipeId));
+            if (recipe) return this._localData.sustainability[recipe.country_id] || null;
+            return null;
+        }
+    },
+
+    // Return all recipes (used for client search)
+    async getAllRecipes() {
+        if (this._useLocal) {
+            await this._ensureLocalData();
+            return this._localData.recipes || [];
+        }
+        try {
+            const { data, error } = await supabase.from('recipes').select('*').order('name');
+            if (error) throw error;
+            return data || [];
+        } catch (e) {
+            console.warn('Supabase getAllRecipes failed, switching to local', e);
+            this._markUseLocal();
+            return this._localData.recipes || [];
+        }
+    },
+
+    // Unified search across countries, recipes, and ingredients
+    async search(q) {
+        const query = (q || '').trim();
+        if (!query) return { countries: [], recipes: [] };
+
+        if (this._useLocal) {
+            await this._ensureLocalData();
+            const ql = query.toLowerCase();
+            const countries = (this._localData.countries || []).filter(c => c.name.toLowerCase().includes(ql));
+            const recipes = (this._localData.recipes || []).filter(r => (
+                (r.name && r.name.toLowerCase().includes(ql)) ||
+                (r.ingredients_full && r.ingredients_full.toLowerCase().includes(ql)) ||
+                (r.country_name && r.country_name.toLowerCase().includes(ql))
+            ));
+            return { countries, recipes };
+        }
+
+        try {
+            // Search countries
+            const { data: countries } = await supabase.from('countries').select('*').ilike('name', `%${query}%`).limit(20);
+            // Search recipes by name or ingredients
+            const { data: recipesByName } = await supabase.from('recipes').select('*').ilike('name', `%${query}%`).limit(50);
+            const { data: recipesByIngredients } = await supabase.from('recipes').select('*').ilike('ingredients_full', `%${query}%`).limit(50);
+            // Merge unique recipes
+            const recipesMap = {};
+            (recipesByName || []).concat(recipesByIngredients || []).forEach(r => { if (r && r.id) recipesMap[r.id] = r; });
+            const recipes = Object.values(recipesMap);
+            return { countries: countries || [], recipes };
+        } catch (e) {
+            console.warn('Supabase search failed, switching to local', e);
+            this._markUseLocal();
+            await this._ensureLocalData();
+            const ql = query.toLowerCase();
+            const countries = (this._localData.countries || []).filter(c => c.name.toLowerCase().includes(ql));
+            const recipes = (this._localData.recipes || []).filter(r => (
+                (r.name && r.name.toLowerCase().includes(ql)) ||
+                (r.ingredients_full && r.ingredients_full.toLowerCase().includes(ql)) ||
+                (r.country_name && r.country_name.toLowerCase().includes(ql))
+            ));
+            return { countries, recipes };
+        }
     },
     
     // Interactions
@@ -139,3 +267,14 @@ window.api = {
         return recData;
     }
 };
+
+// Try a quick ping to Supabase and fall back to local data if unreachable
+(async function testSupabase() {
+    try {
+        const { data, error } = await supabase.from('countries').select('id').limit(1);
+        if (error) throw error;
+    } catch (e) {
+        console.warn('Supabase ping failed — using local JSON fallback', e);
+        window.api._markUseLocal();
+    }
+})();
