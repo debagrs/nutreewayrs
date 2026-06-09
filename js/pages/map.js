@@ -98,15 +98,55 @@ async function fetchWikipediaSummary(title) {
             const res = await fetch(url);
             if (!res.ok) continue;
             const data = await res.json();
-            // Prefer extract_html if available
             if (data && (data.extract_html || data.extract)) {
-                return { title: data.title, extract_html: data.extract_html || `<p>${data.extract}</p>` };
+                // Determine language from the URL we called
+                const lang = url.includes('pt.wikipedia.org') ? 'pt' : 'en';
+                const plain = data.extract || stripHtml(data.extract_html || '');
+
+                // If not Portuguese, attempt translation to pt
+                if (lang !== 'pt' && plain) {
+                    try {
+                        const translated = await translateText(plain, 'en', 'pt');
+                        if (translated) {
+                            return { title: data.title, extract_html: `<p>${translated}</p>`, lang: 'pt' };
+                        }
+                    } catch (te) {
+                        console.warn('translation error', te);
+                        // fallthrough to return original
+                    }
+                }
+
+                return { title: data.title, extract_html: data.extract_html || `<p>${plain}</p>`, lang };
             }
         } catch (e) {
             console.warn('wiki fetch error', e);
         }
     }
     return null;
+}
+
+function stripHtml(html) {
+    try {
+        return html.replace(/<[^>]*>/g, '');
+    } catch (e) { return html; }
+}
+
+async function translateText(text, source = 'en', target = 'pt') {
+    // Use public LibreTranslate instance; if unavailable, this will fail gracefully
+    const endpoint = 'https://libretranslate.de/translate';
+    try {
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ q: text, source, target, format: 'text' })
+        });
+        if (!res.ok) throw new Error('translate failed');
+        const data = await res.json();
+        return data.translatedText;
+    } catch (e) {
+        console.warn('translateText error', e);
+        return null;
+    }
 }
 
 async function showCountrySheet(countryName, dbCountries) {
