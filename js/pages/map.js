@@ -174,7 +174,9 @@ async function showCountrySheet(countryName, dbCountries) {
     // Fetch Wikipedia summary (pt -> en fallback)
     const wiki = await fetchWikipediaSummary(country ? country.name : countryName);
     if (wiki && wiki.extract_html) {
-        desc.innerHTML = wiki.extract_html;
+        // Sanitize and set content, then add show more if needed
+        const safe = sanitizeHtml(wiki.extract_html);
+        setSheetDescription(desc, safe);
     } else {
         desc.textContent = country ? (country.description || 'Nenhuma descrição disponível.') : 'Descrição não encontrada.';
     }
@@ -191,5 +193,78 @@ async function showCountrySheet(countryName, dbCountries) {
         btn.onclick = () => App.navigate('/country', { id: country.id, name: country.name });
     } else {
         btn.style.display = 'none';
+    }
+}
+
+function sanitizeHtml(html) {
+    // Very small sanitizer: allow <p>, <a>, <strong>, <em>, <ul>, <ol>, <li>
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    const allowed = ['P','A','STRONG','EM','UL','OL','LI'];
+    function clean(node) {
+        const children = Array.from(node.childNodes);
+        for (const child of children) {
+            if (child.nodeType === Node.TEXT_NODE) continue;
+            if (child.nodeType === Node.ELEMENT_NODE) {
+                if (!allowed.includes(child.tagName)) {
+                    // replace node with its text content
+                    const text = document.createTextNode(child.textContent || '');
+                    node.replaceChild(text, child);
+                } else {
+                    // sanitize attributes for <a>
+                    if (child.tagName === 'A') {
+                        const href = child.getAttribute('href') || '#';
+                        child.setAttribute('href', href);
+                        child.setAttribute('target', '_blank');
+                        child.setAttribute('rel', 'noopener noreferrer');
+                    }
+                    clean(child);
+                }
+            } else {
+                node.removeChild(child);
+            }
+        }
+    }
+    clean(wrapper);
+    return wrapper.innerHTML;
+}
+
+function setSheetDescription(descEl, htmlContent) {
+    // Clear existing
+    descEl.innerHTML = '';
+    descEl.classList.remove('expanded');
+
+    // Create container with truncated class
+    descEl.classList.add('truncate-3');
+    descEl.innerHTML = htmlContent;
+
+    // Determine if 'more' is needed by checking plain length
+    const plain = descEl.textContent || '';
+    let moreBtn = document.getElementById('sheet-more');
+    if (plain.length > 400) {
+        if (!moreBtn) {
+            moreBtn = document.createElement('button');
+            moreBtn.id = 'sheet-more';
+            moreBtn.textContent = 'Mostrar mais';
+            moreBtn.addEventListener('click', () => {
+                const expanded = descEl.classList.toggle('expanded');
+                if (expanded) {
+                    descEl.classList.remove('truncate-3');
+                    moreBtn.textContent = 'Mostrar menos';
+                } else {
+                    descEl.classList.add('truncate-3');
+                    moreBtn.textContent = 'Mostrar mais';
+                    // scroll sheet into view
+                    descEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            });
+            // append after desc
+            descEl.parentNode.appendChild(moreBtn);
+        } else {
+            moreBtn.style.display = 'inline-block';
+            moreBtn.textContent = 'Mostrar mais';
+        }
+    } else if (moreBtn) {
+        moreBtn.style.display = 'none';
     }
 }

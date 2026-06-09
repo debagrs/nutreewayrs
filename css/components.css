@@ -289,3 +289,24 @@
     opacity: 1;
 }
 .card.hidden { display: none !important; opacity: 0; transform: translateY(20px); }
+
+/* Truncated description inside the country sheet */
+#sheet-desc.truncate-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+#sheet-desc.expanded {
+    display: block;
+    -webkit-line-clamp: none;
+}
+#sheet-more {
+    margin-top: 8px;
+    background: none;
+    border: none;
+    color: var(--accent-blue);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 8px;
+}
