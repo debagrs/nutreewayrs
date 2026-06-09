@@ -8,6 +8,7 @@ const Header = {
     
     reset() {
         this.el.title.textContent = 'Nutreeway';
+        this.el.title.classList.add('header-title');
         this.el.backBtn.classList.add('hidden');
         this.el.backBtn.onclick = null;
         this.el.actions.innerHTML = '';
@@ -28,7 +29,9 @@ const Header = {
                 </svg>
             </button>
         `;
-        document.getElementById('theme-toggle').addEventListener('click', ThemeToggle.toggle);
+        const toggle = document.getElementById('theme-toggle');
+        toggle.setAttribute('aria-pressed', document.documentElement.getAttribute('data-theme') === 'dark');
+        toggle.addEventListener('click', ThemeToggle.toggle);
     },
     
     setTitle(title) {

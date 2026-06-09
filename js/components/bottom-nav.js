@@ -33,6 +33,15 @@ const BottomNav = {
                 <span>Admin</span>
             </a>
         `;
+        // Attach SPA click handlers to nav items
+        nav.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                const path = item.getAttribute('data-path') || '/';
+                App.navigate(path);
+                BottomNav.updateActive(path);
+            });
+        });
     },
     
     updateActive(currentPath) {
