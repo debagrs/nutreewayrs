@@ -1,0 +1,55 @@
+/* css/variables.css */
+:root {
+    /* Color Palette - Dark Mode (Default based on prototype) */
+    --bg-primary: #0d1117;
+    --bg-secondary: #1d2428;
+    --bg-card: #1a2520; /* Green tint */
+    --bg-card-brown: #2d1f12; /* Brown tint */
+    
+    /* Accents */
+    --accent-green: #4caf50;
+    --accent-green-bright: #00e676;
+    --accent-blue: #29b6f6;
+    --accent-orange: #ff7043;
+    --accent-pink: #e91e63;
+    --accent-purple: #7c4dff;
+    
+    /* Text */
+    --text-primary: #ffffff;
+    --text-secondary: #b0bec5;
+    
+    /* Header & Nav */
+    --header-bg: #2e5c3e;
+    --nav-bg: #1d2428;
+    
+    /* Spacing & Borders */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    --border-radius-sm: 8px;
+    --border-radius-md: 12px;
+    --border-radius-lg: 16px;
+    --border-radius-pill: 999px;
+}
+
+[data-theme="light"] {
+    --bg-primary: #f1f4f8;
+    --bg-secondary: #ffffff;
+    --bg-card: #e8f5e9;
+    --bg-card-brown: #fdf3e7;
+    
+    --accent-green: #2e7d32;
+    --accent-green-bright: #00c853;
+    --accent-blue: #0277bd;
+    --accent-orange: #e64a19;
+    --accent-pink: #c2185b;
+    --accent-purple: #512da8;
+    
+    --text-primary: #1a1a1a;
+    --text-secondary: #546e7a;
+    
+    --header-bg: #2e7d32;
+    --nav-bg: #ffffff;
+}
