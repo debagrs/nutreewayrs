@@ -272,3 +272,20 @@
     color: var(--accent-green);
     display: flex;
 }
+
+/* Country sheet (bottom) */
+#country-sheet {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    max-width: calc(100% - 32px);
+    z-index: 200;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+    transition: transform 0.28s ease, opacity 0.28s ease;
+}
+.slide-up {
+    transform: translateY(0);
+    opacity: 1;
+}
+.card.hidden { display: none !important; opacity: 0; transform: translateY(20px); }

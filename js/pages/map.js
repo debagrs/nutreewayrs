@@ -49,6 +49,9 @@ window.renderMapAfterRender = async function() {
         maxZoom: 10
     }).addTo(worldMapInstance);
     
+    // Resolve accent color from CSS variables
+    const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent-green').trim() || '#4caf50';
+
     // Load GeoJSON for interaction
     try {
         const response = await fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json');
@@ -63,7 +66,7 @@ window.renderMapAfterRender = async function() {
                 // Color green if it exists in our DB
                 const isAvailable = dbCountryNames.includes(feature.properties.name.toLowerCase());
                 return {
-                    fillColor: isAvailable ? 'var(--accent-green)' : 'transparent',
+                    fillColor: isAvailable ? accentColor : 'transparent',
                     weight: 1,
                     opacity: 1,
                     color: 'rgba(255,255,255,0.2)',
@@ -83,38 +86,70 @@ window.renderMapAfterRender = async function() {
     }
 };
 
-function showCountrySheet(countryName, dbCountries) {
+async function fetchWikipediaSummary(title) {
+    // Try Portuguese Wikipedia first
+    const enc = encodeURIComponent(title.replace(/ /g, '_'));
+    const urls = [
+        `https://pt.wikipedia.org/api/rest_v1/page/summary/${enc}`,
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${enc}`
+    ];
+    for (const url of urls) {
+        try {
+            const res = await fetch(url);
+            if (!res.ok) continue;
+            const data = await res.json();
+            // Prefer extract_html if available
+            if (data && (data.extract_html || data.extract)) {
+                return { title: data.title, extract_html: data.extract_html || `<p>${data.extract}</p>` };
+            }
+        } catch (e) {
+            console.warn('wiki fetch error', e);
+        }
+    }
+    return null;
+}
+
+async function showCountrySheet(countryName, dbCountries) {
     const sheet = document.getElementById('country-sheet');
     const title = document.getElementById('sheet-title');
     const desc = document.getElementById('sheet-desc');
     const flag = document.getElementById('sheet-flag');
     const btn = document.getElementById('sheet-btn');
-    
+
     // Try to find exact or partial match in our DB
-    const country = dbCountries.find(c => 
-        c.name.toLowerCase() === countryName.toLowerCase() || 
+    const country = dbCountries.find(c =>
+        c.name.toLowerCase() === countryName.toLowerCase() ||
         countryName.toLowerCase().includes(c.name.toLowerCase())
     );
-    
+
     title.textContent = country ? country.name : countryName;
-    
+
+    // Show loading
+    desc.innerHTML = '<em>Carregando informações da Wikipédia...</em>';
+    flag.style.display = 'none';
+    btn.style.display = 'none';
+    sheet.classList.remove('hidden');
+    sheet.classList.add('slide-up');
+
+    // Fetch Wikipedia summary (pt -> en fallback)
+    const wiki = await fetchWikipediaSummary(country ? country.name : countryName);
+    if (wiki && wiki.extract_html) {
+        desc.innerHTML = wiki.extract_html;
+    } else {
+        desc.textContent = country ? (country.description || 'Nenhuma descrição disponível.') : 'Descrição não encontrada.';
+    }
+
+    if (country && country.flag_url) {
+        flag.src = country.flag_url;
+        flag.style.display = 'block';
+    } else {
+        flag.style.display = 'none';
+    }
+
     if (country) {
-        desc.textContent = country.description || "Nenhuma informação gerada pela IA ainda. (Explore as receitas abaixo)";
-        if (country.flag_url) {
-            flag.src = country.flag_url;
-            flag.style.display = 'block';
-        } else {
-            flag.style.display = 'none';
-        }
-        
         btn.style.display = 'flex';
         btn.onclick = () => App.navigate('/country', { id: country.id, name: country.name });
     } else {
-        desc.textContent = "Ainda não adicionamos receitas plant-based para este país.";
-        flag.style.display = 'none';
         btn.style.display = 'none';
     }
-    
-    sheet.classList.remove('hidden');
-    sheet.classList.add('slide-up');
 }
