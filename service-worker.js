@@ -32,6 +32,13 @@ self.addEventListener('install', (event) => {
       return cache.addAll(requests);
     })
   );
+      // Also attempt to cache icons if present in the scope
+      event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => {
+          const iconPaths = ['icons/icon-192.svg', 'icons/icon-512.svg'].map(p => new Request(new URL(p, self.location).href));
+          return cache.addAll(iconPaths).catch(() => { /* ignore missing icons */ });
+        })
+      );
   self.skipWaiting();
 });
 
