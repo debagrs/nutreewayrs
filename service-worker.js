@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nutreeway-v1';
+const CACHE_NAME = 'nutreeway-v2';
 // Use relative paths so Service Worker works correctly when app is hosted
 // under a subpath (e.g. GitHub Pages /<repo>/). Avoid caching external
 // CDNs here (they are better left to the browser cache) and keep paths
